@@ -5,7 +5,8 @@ SHELL := /bin/bash
 .ONESHELL:
 MACHINE := $$(uname -m)
 PACK_NAME = $(TARGET)-$(VERSION)-$(OS)-$(MACHINE)
-komando_SOURCES = src/main.c src/komando.c
+komando_SOURCES = src/main.c koliseo/src/koliseo.c
+komando_plain_SOURCES = src/main_plain.c
 LDADD = $(KOMANDO_LDFLAGS)
 AM_LDFLAGS = -O2
 AM_CFLAGS = $(KOMANDO_CFLAGS) -O2 -Werror -Wpedantic -Wall
@@ -15,10 +16,6 @@ AM_CFLAGS +=
 else
 AM_LDFLAGS += -s
 endif
-if KLS_BUILD
-komando_SOURCES += koliseo/src/koliseo.c
-AM_CFLAGS += -DKMD_HAS_KOLISEO
-endif
 
 %.o: %.c
 	$(CCOMP) -c $(CFLAGS) $(AM_CFLAGS) $< -o $@
@@ -27,19 +24,28 @@ $(TARGET): $(komando_SOURCES:.c=.o)
 	@echo -e "    CFLAGS: [ $(CFLAGS) ]"
 	@echo -e "    AM_CFLAGS: [ $(AM_CFLAGS) ]"
 	@echo -e "    LDADD: [ $(LDADD) ]"
-	$(CCOMP) $(CFLAGS) $(AM_CFLAGS) $(komando_SOURCES:.c=.o) -o $@ $(LDADD) $(AM_LDFLAGS)
+	$(CCOMP) $(CFLAGS) $(AM_CFLAGS) -DKMD_HAS_KOLISEO $(komando_SOURCES:.c=.o) -o $@ $(LDADD) $(AM_LDFLAGS)
+
+komando_plain: $(komando_plain_SOURCES:.c=.o)
+	@echo -e "    CFLAGS: [ $(CFLAGS) ]"
+	@echo -e "    AM_CFLAGS: [ $(AM_CFLAGS) ]"
+	@echo -e "    LDADD: [ $(LDADD) ]"
+	$(CCOMP) $(CFLAGS) $(AM_CFLAGS) $(komando_plain_SOURCES:.c=.o) -o $@ $(LDADD) $(AM_LDFLAGS)
 
 clean:
 	@echo -en "Cleaning build artifacts:  "
 	-rm $(TARGET)
+	-rm komando_plain
 	-rm src/*.o
 	-rm static/*.o
+	-rm koliseo/src/*.o
 	@echo -e "Done."
 
 cleanob:
 	@echo -en "Cleaning object build artifacts:  "
 	-rm src/*.o
 	-rm static/*.o
+	-rm koliseo/src/*.o
 	@echo -e "Done."
 
 anviltest:
@@ -47,6 +53,6 @@ anviltest:
 	./anvil -tX
 	@echo -e "Done."
 
-all: $(TARGET)
+all: $(TARGET) komando_plain
 rebuild: clean all
 .DEFAULT_GOAL := all

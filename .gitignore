@@ -3,6 +3,10 @@
 *.o
 # also explicitly ignore our executable for good measure
 komando
+# also explicitly ignore our plain executable
+komando_plain
+# also explicitly ignore our windows plain executable
+komando_plain.exe
 # also explicitly ignore our windows executable for good measure
 komando.exe
 # also explicitly ignore our debug executable for good measure

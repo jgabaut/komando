@@ -31,11 +31,15 @@
 #include <errno.h>
 #ifdef KMD_HAS_KOLISEO
 #include "../koliseo/src/koliseo.h"
+
+#define DARRAY_T char*
+#define DARRAY_NAME Komando
+#include "../koliseo/templates/darray.h"
 #endif // KMD_HAS_KOLISEO
 
 #define KMD_MAJOR 0
-#define KMD_MINOR 1
-#define KMD_PATCH 1
+#define KMD_MINOR 2
+#define KMD_PATCH 0
 
 /**
  * Defines current API version number from KLS_MAJOR, KLS_MINOR and KLS_PATCH.
@@ -47,12 +51,14 @@ static const int KOMANDO_API_VERSION_INT =
 /**
  * Defines current API version string.
  */
-static const char KOMANDO_API_VERSION_STRING[] = "0.1.1"; /**< Represents current version with MAJOR.MINOR.PATCH format.*/
+static const char KOMANDO_API_VERSION_STRING[] = "0.2.0"; /**< Represents current version with MAJOR.MINOR.PATCH format.*/
 
+#ifndef KMD_HAS_KOLISEO
 typedef struct Komando {
     char** args;
     size_t argc;
 } Komando;
+#endif // KMD_HAS_KOLISEO
 
 typedef struct KmdLoc {
     const char* file;
@@ -75,20 +81,24 @@ typedef HANDLE Kmd_Process;
 #endif
 
 bool euser_is_root(void);
+#ifndef KMD_HAS_KOLISEO
 Komando new_command(size_t argc, const char** args);
 Komando new_shell_command(size_t argc, const char** args);
-#ifdef KMD_HAS_KOLISEO
+void free_command(Komando* c);
+Komando cmd_from_strings(const char** strings, size_t tot_strings, bool* success);
+#else
+Komando new_command(size_t argc, const char** args, Koliseo_Temp* kls_t);
+Komando new_shell_command(size_t argc, const char** args, Koliseo_Temp* kls_t);
 Komando new_command_kls_t(size_t argc, const char** args, Koliseo_Temp* kls_t);
 Komando new_shell_command_kls_t(size_t argc, const char** args, Koliseo_Temp* kls_t);
+Komando cmd_from_strings(const char** strings, size_t tot_strings, bool* success, Koliseo_Temp* kls_t);
 #endif // KMD_HAS_KOLISEO
-void free_command(Komando* c);
 Kmd_Process _run_command_async(Komando c, KmdLoc loc);
 #define run_command_async(cmd) _run_command_async((cmd), KMD_HERE)
 bool _command_wait(Kmd_Process p, KmdLoc loc);
 #define command_wait(p) _command_wait((p), KMD_HERE)
 bool _run_command_sync(Komando c, KmdLoc loc);
 #define run_command_sync(cmd) _run_command_sync((cmd), KMD_HERE)
-Komando cmd_from_strings(const char** strings, size_t tot_strings, bool* success);
 
 #define run_command(cmd) run_command_sync((cmd))
 #endif // KOMANDO_H_
@@ -122,6 +132,7 @@ bool euser_is_root(void) {
 #endif
 }
 
+#ifndef KMD_HAS_KOLISEO
 Komando new_command(size_t argc, const char** args) {
     Komando res = {
         .argc = argc,
@@ -183,20 +194,43 @@ Komando new_shell_command(size_t argc, const char** args)
     return res;
 }
 
-#ifdef KMD_HAS_KOLISEO
+void free_command(Komando* c) {
+    assert(c != NULL);
+    for (size_t i = 0; i < c->argc; i++) {
+        free(c->args[i]);
+    }
+    free(c->args);
+}
+
+Komando cmd_from_strings(const char** strings, size_t tot_strings, bool* success)
+{
+    Komando cmd = new_command(tot_strings, strings);
+    *success = true;
+    return cmd;
+}
+#else
+
+Komando new_command(size_t argc, const char** args, Koliseo_Temp* kls_t) {
+    return new_command_kls_t(argc, args, kls_t);
+}
+
+Komando new_shell_command(size_t argc, const char** args, Koliseo_Temp* kls_t) {
+    return new_shell_command_kls_t(argc, args, kls_t);
+}
+
 Komando new_command_kls_t(size_t argc, const char** args, Koliseo_Temp* kls_t) {
     assert(kls_t != NULL);
-    Komando res = {
-        .argc = argc,
-    };
-    res.args = KLS_PUSH_ARR_T(kls_t, char*, argc+1);
+    Komando* res = Komando_init_t(kls_t);
     for (size_t i = 0; i < argc; i++) {
         assert(args[i] != NULL);
-        res.args[i] = KLS_PUSH_ARR_T(kls_t, char, strlen(args[i])+1);
-        memcpy(res.args[i], args[i], strlen(args[i]) +1);
+        // Komando_push_t(res, (char*)args[i]);
+        char* buf = KLS_PUSH_ARR_T(kls_t, char, strlen(args[i])+1);
+        memcpy(buf, args[i], strlen(args[i]) +1);
+        Komando_push_t(res, buf);
     }
-    res.args[argc] = NULL;
-    return res;
+    Komando_push_t(res, NULL);
+    res->count--;
+    return *res;
 }
 
 Komando new_shell_command_kls_t(size_t argc, const char** args, Koliseo_Temp* kls_t)
@@ -242,21 +276,21 @@ Komando new_shell_command_kls_t(size_t argc, const char** args, Koliseo_Temp* kl
 #endif
     return res;
 }
-#endif // KMD_HAS_KOLISEO
 
-void free_command(Komando* c) {
-    assert(c != NULL);
-    for (size_t i = 0; i < c->argc; i++) {
-        free(c->args[i]);
-    }
-    free(c->args);
+Komando cmd_from_strings(const char** strings, size_t tot_strings, bool* success, Koliseo_Temp* kls_t)
+{
+    Komando cmd = new_command(tot_strings, strings, kls_t);
+    *success = true;
+    return cmd;
 }
+#endif // KMD_HAS_KOLISEO
 
 Kmd_Process _run_command_async(Komando c, KmdLoc loc) {
     if (euser_is_root()) {
         fprintf(stderr, "[ %s:%i at %s() ] %s():    Can't run commands as root.\n", loc.file, loc.line, loc.func, __func__);
         return KMD_PROCESS_INVALID;
     }
+#ifndef KMD_HAS_KOLISEO
     // Komando check
     if (c.argc < 1) {
         fprintf(stderr, "[ %s:%i at %s() ] %s(): Komando malformed, not enough arguments: {%zu}.\n", loc.file, loc.line, loc.func, __func__, c.argc);
@@ -273,6 +307,24 @@ Kmd_Process _run_command_async(Komando c, KmdLoc loc) {
             return KMD_PROCESS_INVALID;
         }
     }
+#else
+    // Komando check
+    if (c.count < 1) {
+        fprintf(stderr, "[ %s:%i at %s() ] %s(): Komando malformed, not enough arguments: {%zu}.\n", loc.file, loc.line, loc.func, __func__, c.count);
+        return KMD_PROCESS_INVALID;
+    } else {
+        for (size_t i = 0; i < c.count; i++) {
+            if (c.items[i] == NULL) {
+                fprintf(stderr, "[ %s:%i at %s() ] %s(): Komando malformed, argument #{%zu} was NULL.\n", loc.file, loc.line, loc.func, __func__, i);
+                return KMD_PROCESS_INVALID;
+            }
+        }
+        if (c.items[c.count] != NULL) {
+            fprintf(stderr, "[ %s:%i at %s() ] %s(): Komando malformed, arguments array is not NULL terminated. #{%zu} was not NULL.\n", loc.file, loc.line, loc.func, __func__, c.count);
+            return KMD_PROCESS_INVALID;
+        }
+    }
+#endif // KMD_HAS_KOLISEO
 
     // Run
 #ifndef _WIN32
@@ -280,6 +332,7 @@ Kmd_Process _run_command_async(Komando c, KmdLoc loc) {
 
     child_pid = fork();
 
+#ifndef KMD_HAS_KOLISEO
     if (child_pid < 0) {
         fprintf(stderr, "[ %s:%i at %s() ] %s(): Could not fork for command {%s}.\n", loc.file, loc.line, loc.func, __func__, c.args[0]);
         exit(EXIT_FAILURE);
@@ -294,7 +347,23 @@ Kmd_Process _run_command_async(Komando c, KmdLoc loc) {
     }
     return child_pid;
 #else
+    if (child_pid < 0) {
+        fprintf(stderr, "[ %s:%i at %s() ] %s(): Could not fork for command {%s}.\n", loc.file, loc.line, loc.func, __func__, c.items[0]);
+        exit(EXIT_FAILURE);
+    } else if (child_pid == 0) {
+
+        int exec_res = execvp(c.items[0], c.items);
+        if (exec_res < 0) {
+            fprintf(stderr, "[ %s:%i at %s() ] %s(): Could not exec for command {%s}. {%s}.\n", loc.file, loc.line, loc.func, __func__, c.items[0], strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        assert(false && "UNREACHABLE");
+    }
+    return child_pid;
+#endif // KMD_HAS_KOLISEO
+#else
     size_t total_len = 0;
+#ifndef KMD_HAS_KOLISEO
     for (size_t i = 0; i < c.argc; i++) {
         total_len += strlen(c.args[i]) + 3; // quotes + space
     }
@@ -308,6 +377,21 @@ Kmd_Process _run_command_async(Komando c, KmdLoc loc) {
         strcat(cmdline, "\"");
         if (i < c.argc - 1) strcat(cmdline, " ");
     }
+#else
+    for (size_t i = 0; i < c.count; i++) {
+        total_len += strlen(c.items[i]) + 3; // quotes + space
+    }
+    char* cmdline = malloc(total_len + 1);
+    if (!cmdline) return NULL;
+    cmdline[0] = '\0';
+
+    for (size_t i = 0; i < c.count; i++) {
+        strcat(cmdline, "\"");
+        strcat(cmdline, c.items[i]);
+        strcat(cmdline, "\"");
+        if (i < c.count - 1) strcat(cmdline, " ");
+    }
+#endif // KMD_HAS_KOLISEO
 
     STARTUPINFOA si;
     PROCESS_INFORMATION pi;
@@ -401,12 +485,5 @@ bool _run_command_sync(Komando c, KmdLoc loc) {
     Kmd_Process p = _run_command_async(c, loc);
     bool res = _command_wait(p, loc);
     return res;
-}
-
-Komando cmd_from_strings(const char** strings, size_t tot_strings, bool* success)
-{
-    Komando cmd = new_command(tot_strings, strings);
-    *success = true;
-    return cmd;
 }
 #endif // KMD_IMPLEMENTATION
