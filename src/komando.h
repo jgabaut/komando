@@ -39,7 +39,7 @@
 
 #define KMD_MAJOR 0
 #define KMD_MINOR 3
-#define KMD_PATCH 0
+#define KMD_PATCH 1
 
 /**
  * Defines current API version number from KLS_MAJOR, KLS_MINOR and KLS_PATCH.
@@ -51,7 +51,7 @@ static const int KOMANDO_API_VERSION_INT =
 /**
  * Defines current API version string.
  */
-static const char KOMANDO_API_VERSION_STRING[] = "0.3.0"; /**< Represents current version with MAJOR.MINOR.PATCH format.*/
+static const char KOMANDO_API_VERSION_STRING[] = "0.3.1"; /**< Represents current version with MAJOR.MINOR.PATCH format.*/
 
 #ifndef KMD_HAS_KOLISEO
 typedef struct Komando {
@@ -665,6 +665,7 @@ bool _run_command_checked(Komando c, bool* matched, bool record, const char* std
         return -1;
     }
     bool res = _run_command_sync_fp(c, NULL, fout, ferr, loc);
+    rewind(fout);
     int out_fd = fileno(fout);
     int stdout_res = kmd_compare_stream_to_file(out_fd, stdout_filename);
     switch (stdout_res) {
@@ -705,6 +706,7 @@ bool _run_command_checked(Komando c, bool* matched, bool record, const char* std
         }
         break;
     }
+    rewind(ferr);
     int err_fd = fileno(ferr);
     int stderr_res = kmd_compare_stream_to_file(err_fd, stderr_filename);
     switch (stderr_res) {
