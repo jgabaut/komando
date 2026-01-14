@@ -106,6 +106,8 @@ bool _command_wait(Kmd_Process p, KmdLoc loc);
 bool _run_command_sync_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd* fderr, KmdLoc loc);
 bool _run_command_sync_fp(Komando c, FILE* fdin, FILE* fdout, FILE* fderr, KmdLoc loc);
 bool _run_command_sync(Komando c, KmdLoc loc);
+void kmd_print_stream_to_file(int source, FILE* dest);
+int kmd_compare_stream_to_file(int source, const char *filepath);
 #define run_command_sync(cmd) _run_command_sync((cmd), KMD_HERE)
 #define run_command_sync_fd(cmd, fdin, fdout, fderr) _run_command_sync_fd((cmd), (fdin), (fdout), (fderr), KMD_HERE)
 #define run_command_sync_fp(cmd, fin, fout, ferr) _run_command_sync_fp((cmd), (fin), (fout), (ferr), KMD_HERE)
@@ -595,5 +597,52 @@ bool _run_command_sync_fp(Komando c, FILE* fin, FILE* fout, FILE* ferr, KmdLoc l
 
 bool _run_command_sync(Komando c, KmdLoc loc) {
     return _run_command_sync_fd(c, NULL, NULL, NULL, loc);
+}
+
+void kmd_print_stream_to_file(int source, FILE* dest)
+{
+    if (!dest) return;
+    char buffer[256];
+    ssize_t count;
+    while ((count = read(source, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[count] = '\0';
+        fprintf(dest, "%s", buffer);
+    }
+}
+
+int kmd_compare_stream_to_file(int source, const char *filepath)
+{
+    if (!filepath) return 0;
+
+    // Open the file for comparison
+    FILE *file = fopen(filepath, "rb");
+    if (!file) {
+        perror("Failed to open file");
+        return -1; // error opening file
+    }
+
+    // Buffer for reading from both the source and the file
+    char source_buffer[256];
+    char file_buffer[256];
+    ssize_t source_count, file_count;
+
+    // Compare the contents
+    while ((source_count = read(source, source_buffer, sizeof(source_buffer))) > 0) {
+        file_count = fread(file_buffer, 1, source_count, file);
+
+        if (source_count != file_count || memcmp(source_buffer, file_buffer, source_count) != 0) {
+            fclose(file);
+            return 0; // contents don't match
+        }
+    }
+
+    // Check if there are any remaining bytes in the file
+    if (fread(file_buffer, 1, sizeof(file_buffer), file) > 0) {
+        fclose(file);
+        return 0; // the file has more data left
+    }
+
+    fclose(file);
+    return 1; // contents match
 }
 #endif // KMD_IMPLEMENTATION
