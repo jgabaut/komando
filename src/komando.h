@@ -106,14 +106,18 @@ bool _command_wait(Kmd_Process p, KmdLoc loc);
 bool _run_command_sync_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd* fderr, KmdLoc loc);
 bool _run_command_sync_fp(Komando c, FILE* fdin, FILE* fdout, FILE* fderr, KmdLoc loc);
 bool _run_command_sync(Komando c, KmdLoc loc);
-void kmd_print_stream_to_file(int source, FILE* dest);
-int kmd_compare_stream_to_file(int source, const char *filepath);
 #define run_command_sync(cmd) _run_command_sync((cmd), KMD_HERE)
 #define run_command_sync_fd(cmd, fdin, fdout, fderr) _run_command_sync_fd((cmd), (fdin), (fdout), (fderr), KMD_HERE)
 #define run_command_sync_fp(cmd, fin, fout, ferr) _run_command_sync_fp((cmd), (fin), (fout), (ferr), KMD_HERE)
 
 #define run_command(cmd) run_command_sync((cmd))
 #define run_command_fd(cmd, fdin, fdout, fderr) run_command_sync((cmd), (fdin), (fdout), (fderr))
+
+void kmd_print_stream_to_file(int source, FILE* dest);
+int kmd_compare_stream_to_file(int source, const char *filepath);
+bool _run_command_checked(Komando c, bool* matched, bool record, const char* stdout_filename, const char* stderr_filename, KmdLoc loc);
+
+#define run_command_checked(c, matched, record, stdout_filename, stderr_filename) _run_command_checked((c), (matched), (record), (stdout_filename), (stderr_filename), KMD_HERE)
 #endif // KOMANDO_H_
 
 #ifdef KMD_IMPLEMENTATION
@@ -644,5 +648,105 @@ int kmd_compare_stream_to_file(int source, const char *filepath)
 
     fclose(file);
     return 1; // contents match
+}
+
+bool _run_command_checked(Komando c, bool* matched, bool record, const char* stdout_filename, const char* stderr_filename, KmdLoc loc) {
+    FILE* fout = tmpfile();
+    if (!fout) {
+        fprintf(stderr, "[ %s:%i ] %s(): tmpfile() failed.\n",
+            loc.file, loc.line, __func__);
+        return -1;
+    }
+    FILE* ferr = tmpfile();
+    if (!ferr) {
+        fprintf(stderr, "[ %s:%i ] %s(): tmpfile() failed.\n",
+            loc.file, loc.line, __func__);
+        fclose(fout);
+        return -1;
+    }
+    bool res = _run_command_sync_fp(c, NULL, fout, ferr, loc);
+    int out_fd = fileno(fout);
+    int stdout_res = kmd_compare_stream_to_file(out_fd, stdout_filename);
+    switch (stdout_res) {
+        case 0: {
+            *matched = false;
+            FILE* stdout_file = fopen(stdout_filename, "rb");
+            if (!stdout_file) {
+                fprintf(stderr, "Failed opening stdout record at {%s}\n", stdout_filename);
+            } else {
+                printf("Expected: {\"\n");
+                int stdout_record_fd = fileno(stdout_file);
+                kmd_print_stream_to_file(stdout_record_fd, stdout);
+                printf("\"}\nFound: {\"\n");
+                rewind(fout);
+                kmd_print_stream_to_file(out_fd, stdout);
+                printf("\"}\n");
+                if (record) {
+                    fclose(stdout_file);
+                    FILE* stdout_file = fopen(stdout_filename, "w");
+                    rewind(fout);
+                    kmd_print_stream_to_file(out_fd, stdout_file);
+                    fclose(stdout_file);
+                } else {
+                    fclose(stdout_file);
+                }
+            }
+        }
+        break;
+        case 1: { *matched = true; }
+        break;
+        case -1: {
+            *matched = false;
+            printf("stdout record {%s} not found\n", stdout_filename);
+        }
+        break;
+        default: {
+            printf("unexpected result: {%i}\n", stdout_res);
+        }
+        break;
+    }
+    int err_fd = fileno(ferr);
+    int stderr_res = kmd_compare_stream_to_file(err_fd, stderr_filename);
+    switch (stderr_res) {
+        case 0: {
+            *matched = false;
+            FILE* stderr_file = fopen(stderr_filename, "rb");
+            if (!stderr_file) {
+                fprintf(stderr, "Failed opening stderr record at {%s}\n", stderr_filename);
+            } else {
+                printf("Expected: {\"\n");
+                int stderr_record_fd = fileno(stderr_file);
+                kmd_print_stream_to_file(stderr_record_fd, stdout);
+                printf("\"}\nFound: {\"\n");
+                rewind(ferr);
+                kmd_print_stream_to_file(err_fd, stdout);
+                printf("\"}\n");
+                if (record) {
+                    fclose(stderr_file);
+                    FILE* stderr_file = fopen(stderr_filename, "w");
+                    rewind(ferr);
+                    kmd_print_stream_to_file(err_fd, stderr_file);
+                    fclose(stderr_file);
+                } else {
+                    fclose(stderr_file);
+                }
+            }
+        }
+        break;
+        case 1: { *matched = true; }
+        break;
+        case -1: {
+            *matched = false;
+            printf("stderr record {%s} not found\n", stderr_filename);
+        }
+        break;
+        default: {
+            printf("unexpected result: {%i}\n", stderr_res);
+        }
+        break;
+    }
+    fclose(fout);
+    fclose(ferr);
+    return res; // Returns result of the command
 }
 #endif // KMD_IMPLEMENTATION
