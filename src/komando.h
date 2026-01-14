@@ -38,7 +38,7 @@
 #endif // KMD_HAS_KOLISEO
 
 #define KMD_MAJOR 0
-#define KMD_MINOR 2
+#define KMD_MINOR 3
 #define KMD_PATCH 0
 
 /**
@@ -51,7 +51,7 @@ static const int KOMANDO_API_VERSION_INT =
 /**
  * Defines current API version string.
  */
-static const char KOMANDO_API_VERSION_STRING[] = "0.2.0"; /**< Represents current version with MAJOR.MINOR.PATCH format.*/
+static const char KOMANDO_API_VERSION_STRING[] = "0.3.0"; /**< Represents current version with MAJOR.MINOR.PATCH format.*/
 
 #ifndef KMD_HAS_KOLISEO
 typedef struct Komando {
@@ -75,8 +75,10 @@ typedef struct KmdLoc {
 #ifndef _WIN32
 typedef pid_t Kmd_Process;
 #define KMD_PROCESS_INVALID -1
+typedef int Kmd_Fd;
 #else
 typedef HANDLE Kmd_Process;
+typedef HANDLE Kmd_Fd;
 #define KMD_PROCESS_INVALID NULL
 #endif
 
@@ -93,14 +95,23 @@ Komando new_command_kls_t(size_t argc, const char** args, Koliseo_Temp* kls_t);
 Komando new_shell_command_kls_t(size_t argc, const char** args, Koliseo_Temp* kls_t);
 Komando cmd_from_strings(const char** strings, size_t tot_strings, bool* success, Koliseo_Temp* kls_t);
 #endif // KMD_HAS_KOLISEO
+Kmd_Process _run_command_async_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd* fderr, KmdLoc loc);
+Kmd_Process _run_command_async_fp(Komando c, FILE* fdin, FILE* fdout, FILE* fderr, KmdLoc loc);
 Kmd_Process _run_command_async(Komando c, KmdLoc loc);
 #define run_command_async(cmd) _run_command_async((cmd), KMD_HERE)
+#define run_command_async_fd(cmd, fdin, fdout, fderr) _run_command_async_fd((cmd), (fdin), (fdout), (fderr), KMD_HERE)
+#define run_command_async_fp(cmd, fin, fout, ferr) _run_command_async_fp((cmd), (fin), (fout), (ferr), KMD_HERE)
 bool _command_wait(Kmd_Process p, KmdLoc loc);
 #define command_wait(p) _command_wait((p), KMD_HERE)
+bool _run_command_sync_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd* fderr, KmdLoc loc);
+bool _run_command_sync_fp(Komando c, FILE* fdin, FILE* fdout, FILE* fderr, KmdLoc loc);
 bool _run_command_sync(Komando c, KmdLoc loc);
 #define run_command_sync(cmd) _run_command_sync((cmd), KMD_HERE)
+#define run_command_sync_fd(cmd, fdin, fdout, fderr) _run_command_sync_fd((cmd), (fdin), (fdout), (fderr), KMD_HERE)
+#define run_command_sync_fp(cmd, fin, fout, ferr) _run_command_sync_fp((cmd), (fin), (fout), (ferr), KMD_HERE)
 
 #define run_command(cmd) run_command_sync((cmd))
+#define run_command_fd(cmd, fdin, fdout, fderr) run_command_sync((cmd), (fdin), (fdout), (fderr))
 #endif // KOMANDO_H_
 
 #ifdef KMD_IMPLEMENTATION
@@ -285,7 +296,7 @@ Komando cmd_from_strings(const char** strings, size_t tot_strings, bool* success
 }
 #endif // KMD_HAS_KOLISEO
 
-Kmd_Process _run_command_async(Komando c, KmdLoc loc) {
+Kmd_Process _run_command_async_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd* fderr, KmdLoc loc) {
     if (euser_is_root()) {
         fprintf(stderr, "[ %s:%i at %s() ] %s():    Can't run commands as root.\n", loc.file, loc.line, loc.func, __func__);
         return KMD_PROCESS_INVALID;
@@ -351,7 +362,24 @@ Kmd_Process _run_command_async(Komando c, KmdLoc loc) {
         fprintf(stderr, "[ %s:%i at %s() ] %s(): Could not fork for command {%s}.\n", loc.file, loc.line, loc.func, __func__, c.items[0]);
         exit(EXIT_FAILURE);
     } else if (child_pid == 0) {
-
+        if (fdin) {
+            if (dup2(*fdin, STDIN_FILENO) < 0) {
+                fprintf(stderr, "[ %s:%i at %s() ] %s(): Could not dup2 fdin for command {%s}, {%s}\n", loc.file, loc.line, loc.func, __func__, c.items[0], strerror(errno));
+                exit(EXIT_FAILURE);
+            }
+        }
+        if (fdout) {
+            if (dup2(*fdout, STDOUT_FILENO) < 0) {
+                fprintf(stderr, "[ %s:%i at %s() ] %s(): Could not dup2 fdout for command {%s}, {%s}\n", loc.file, loc.line, loc.func, __func__, c.items[0], strerror(errno));
+                exit(EXIT_FAILURE);
+            }
+        }
+        if (fderr) {
+            if (dup2(*fderr, STDERR_FILENO) < 0) {
+                fprintf(stderr, "[ %s:%i at %s() ] %s(): Could not dup2 fderr for command {%s}, {%s}\n", loc.file, loc.line, loc.func, __func__, c.items[0], strerror(errno));
+                exit(EXIT_FAILURE);
+            }
+        }
         int exec_res = execvp(c.items[0], c.items);
         if (exec_res < 0) {
             fprintf(stderr, "[ %s:%i at %s() ] %s(): Could not exec for command {%s}. {%s}.\n", loc.file, loc.line, loc.func, __func__, c.items[0], strerror(errno));
@@ -399,6 +427,12 @@ Kmd_Process _run_command_async(Komando c, KmdLoc loc) {
     si.cb = sizeof(si);
     ZeroMemory(&pi, sizeof(pi));
 
+    si.hStdError = fderr ? *fderr : GetStdHandle(STD_ERROR_HANDLE);
+    si.hStdOutput = fdout ? *fdout : GetStdHandle(STD_OUTPUT_HANDLE);
+    si.hStdInput = fdin ? *fdin : GetStdHandle(STD_INPUT_HANDLE);
+    si.dwFlags |= STARTF_USESTDHANDLES;
+
+
     // Always use full path to cmd.exe
     char sysdir[MAX_PATH];
     GetSystemDirectoryA(sysdir, MAX_PATH);
@@ -413,7 +447,7 @@ Kmd_Process _run_command_async(Komando c, KmdLoc loc) {
         app,            // application name
         full_cmdline,   // command line (mutable string)
         NULL, NULL,     // security
-        FALSE,          // inherit handles
+        TRUE,          // inherit handles
         0,              // flags
         NULL, NULL,     // env, cwd
         &si, &pi
@@ -432,6 +466,72 @@ Kmd_Process _run_command_async(Komando c, KmdLoc loc) {
     return pi.hProcess; // return HANDLE
 #endif // _WIN32
     //We're not freeing the strings in case the command wants to run again
+}
+
+Kmd_Process _run_command_async_fp(Komando c, FILE* fin, FILE* fout, FILE* ferr, KmdLoc loc) {
+    Kmd_Fd fdin = {0};
+    Kmd_Fd fdout = {0};
+    Kmd_Fd fderr = {0};
+    int in = -1;
+    int out = -1;
+    int err = -1;
+    bool use_fdin = false;
+    bool use_fdout = false;
+    bool use_fderr = false;
+    if (fin) {
+        in = fileno(fin);
+        if (in >= 0) {
+#ifndef _WIN32
+            fdin = in;
+#else
+            fdin = (Kmd_Fd) _get_osfhandle(in);
+            if (fdin == INVALID_HANDLE_VALUE) {
+                fprintf(stderr, "[ %s:%i at %s() ] %s(): Could not get HANDLE for fdin.\n", loc.file, loc.line, loc.func, __func__);
+                return KMD_PROCESS_INVALID;
+            }
+#endif // _WIN32
+            use_fdin = true;
+        }
+    }
+    if (fout) {
+        out = fileno(fout);
+        if (out >= 0) {
+#ifndef _WIN32
+            fdout = out;
+#else
+            fdout = (Kmd_Fd) _get_osfhandle(out);
+            if (fdout == INVALID_HANDLE_VALUE) {
+                fprintf(stderr, "[ %s:%i at %s() ] %s(): Could not get HANDLE for fdout.\n", loc.file, loc.line, loc.func, __func__);
+                return KMD_PROCESS_INVALID;
+            }
+#endif // _WIN32
+            use_fdout = true;
+        }
+    }
+    if (ferr) {
+        err = fileno(ferr);
+        if (err >= 0) {
+#ifndef _WIN32
+            fderr = err;
+#else
+            fderr = (Kmd_Fd) _get_osfhandle(err);
+            if (fderr == INVALID_HANDLE_VALUE) {
+                fprintf(stderr, "[ %s:%i at %s() ] %s(): Could not get HANDLE for fderr.\n", loc.file, loc.line, loc.func, __func__);
+                return KMD_PROCESS_INVALID;
+            }
+#endif // _WIN32
+            use_fderr = true;
+        }
+    }
+    return _run_command_async_fd(c,
+            use_fdin ? &fdin : NULL,
+            use_fdout ? &fdout : NULL,
+            use_fderr ? &fderr : NULL,
+        loc);
+}
+
+Kmd_Process _run_command_async(Komando c, KmdLoc loc) {
+    return _run_command_async_fd(c, NULL, NULL, NULL, loc);
 }
 
 bool _command_wait(Kmd_Process p, KmdLoc loc) {
@@ -481,9 +581,19 @@ bool _command_wait(Kmd_Process p, KmdLoc loc) {
 #endif // _WIN32
 }
 
-bool _run_command_sync(Komando c, KmdLoc loc) {
-    Kmd_Process p = _run_command_async(c, loc);
+bool _run_command_sync_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd* fderr, KmdLoc loc) {
+    Kmd_Process p = _run_command_async_fd(c, fdin, fdout, fderr, loc);
     bool res = _command_wait(p, loc);
     return res;
+}
+
+bool _run_command_sync_fp(Komando c, FILE* fin, FILE* fout, FILE* ferr, KmdLoc loc) {
+    Kmd_Process p = _run_command_async_fp(c, fin, fout, ferr, loc);
+    bool res = _command_wait(p, loc);
+    return res;
+}
+
+bool _run_command_sync(Komando c, KmdLoc loc) {
+    return _run_command_sync_fd(c, NULL, NULL, NULL, loc);
 }
 #endif // KMD_IMPLEMENTATION
