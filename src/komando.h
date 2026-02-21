@@ -17,6 +17,13 @@
 */
 #ifndef KOMANDO_H_
 #define KOMANDO_H_
+#ifdef KMD_HAS_KOLISEO
+#include "../koliseo/src/koliseo.h"
+
+#define DARRAY_T char*
+#define DARRAY_NAME Komando
+#include "../koliseo/templates/darray.h"
+#endif // KMD_HAS_KOLISEO
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -29,17 +36,10 @@
 #include <windows.h>
 #endif
 #include <errno.h>
-#ifdef KMD_HAS_KOLISEO
-#include "../koliseo/src/koliseo.h"
-
-#define DARRAY_T char*
-#define DARRAY_NAME Komando
-#include "../koliseo/templates/darray.h"
-#endif // KMD_HAS_KOLISEO
 
 #define KMD_MAJOR 0
 #define KMD_MINOR 3
-#define KMD_PATCH 1
+#define KMD_PATCH 2
 
 /**
  * Defines current API version number from KLS_MAJOR, KLS_MINOR and KLS_PATCH.
@@ -51,7 +51,7 @@ static const int KOMANDO_API_VERSION_INT =
 /**
  * Defines current API version string.
  */
-static const char KOMANDO_API_VERSION_STRING[] = "0.3.1"; /**< Represents current version with MAJOR.MINOR.PATCH format.*/
+static const char KOMANDO_API_VERSION_STRING[] = "0.3.2"; /**< Represents current version with MAJOR.MINOR.PATCH format.*/
 
 #ifndef KMD_HAS_KOLISEO
 typedef struct Komando {
@@ -152,7 +152,7 @@ bool euser_is_root(void) {
 #ifndef KMD_HAS_KOLISEO
 Komando new_command(size_t argc, const char** args) {
     Komando res = {
-        .argc = argc,
+        .argc = argc+1,
     };
     res.args = calloc(argc+1, sizeof(char*));
     for (size_t i = 0; i < argc; i++) {
@@ -175,7 +175,9 @@ Komando new_shell_command(size_t argc, const char** args)
         sh_args[i] = strdup(args[i-2]);
     }
     Komando res = new_command(argc+2, sh_args);
-
+    for (size_t i = 2; i < argc+2; i++) {
+        free((char*)sh_args[i]);
+    }
 #else
     // WINDOWS: build a single string "echo foo"
     size_t total_len = 0;
@@ -213,7 +215,7 @@ Komando new_shell_command(size_t argc, const char** args)
 
 void free_command(Komando* c) {
     assert(c != NULL);
-    for (size_t i = 0; i < c->argc; i++) {
+    for (size_t i = 0; i < c->argc -1; i++) {
         free(c->args[i]);
     }
     free(c->args);
@@ -246,7 +248,6 @@ Komando new_command_kls_t(size_t argc, const char** args, Koliseo_Temp* kls_t) {
         Komando_push_t(res, buf);
     }
     Komando_push_t(res, NULL);
-    res->count--;
     return *res;
 }
 
@@ -313,13 +314,13 @@ Kmd_Process _run_command_async_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd
         fprintf(stderr, "[ %s:%i at %s() ] %s(): Komando malformed, not enough arguments: {%zu}.\n", loc.file, loc.line, loc.func, __func__, c.argc);
         return KMD_PROCESS_INVALID;
     } else {
-        for (size_t i = 0; i < c.argc; i++) {
+        for (size_t i = 0; i < c.argc -1; i++) {
             if (c.args[i] == NULL) {
                 fprintf(stderr, "[ %s:%i at %s() ] %s(): Komando malformed, argument #{%zu} was NULL.\n", loc.file, loc.line, loc.func, __func__, i);
                 return KMD_PROCESS_INVALID;
             }
         }
-        if (c.args[c.argc] != NULL) {
+        if (c.args[c.argc-1] != NULL) {
             fprintf(stderr, "[ %s:%i at %s() ] %s(): Komando malformed, arguments array is not NULL terminated. #{%zu} was not NULL.\n", loc.file, loc.line, loc.func, __func__, c.argc);
             return KMD_PROCESS_INVALID;
         }
@@ -330,13 +331,13 @@ Kmd_Process _run_command_async_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd
         fprintf(stderr, "[ %s:%i at %s() ] %s(): Komando malformed, not enough arguments: {%zu}.\n", loc.file, loc.line, loc.func, __func__, c.count);
         return KMD_PROCESS_INVALID;
     } else {
-        for (size_t i = 0; i < c.count; i++) {
+        for (size_t i = 0; i < c.count-1; i++) {
             if (c.items[i] == NULL) {
                 fprintf(stderr, "[ %s:%i at %s() ] %s(): Komando malformed, argument #{%zu} was NULL.\n", loc.file, loc.line, loc.func, __func__, i);
                 return KMD_PROCESS_INVALID;
             }
         }
-        if (c.items[c.count] != NULL) {
+        if (c.items[c.count-1] != NULL) {
             fprintf(stderr, "[ %s:%i at %s() ] %s(): Komando malformed, arguments array is not NULL terminated. #{%zu} was not NULL.\n", loc.file, loc.line, loc.func, __func__, c.count);
             return KMD_PROCESS_INVALID;
         }
