@@ -403,6 +403,7 @@ Kmd_Process _run_command_async_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd
         total_len += strlen(c.args[i]) + 3; // quotes + space
     }
     char* cmdline = malloc(total_len + 1);
+    memset(cmdline, 0, total_len+1);
     if (!cmdline) return NULL;
     cmdline[0] = '\0';
 
@@ -417,6 +418,7 @@ Kmd_Process _run_command_async_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd
         total_len += strlen(c.items[i]) + 3; // quotes + space
     }
     char* cmdline = malloc(total_len + 1);
+    memset(cmdline, 0, total_len+1);
     if (!cmdline) return NULL;
     cmdline[0] = '\0';
 
