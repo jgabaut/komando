@@ -1,7 +1,7 @@
-#include <stdio.h>
 #define KMD_HAS_KOLISEO
 #define KMD_IMPLEMENTATION
 #include "komando.h"
+#include <stdio.h>
 
 int main(int argc, char** argv) {
     const char* args[] = {
