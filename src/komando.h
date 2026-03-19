@@ -399,28 +399,28 @@ Kmd_Process _run_command_async_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd
 #else
     size_t total_len = 0;
 #ifndef KMD_HAS_KOLISEO
-    for (size_t i = 0; i < c.argc; i++) {
+    for (size_t i = 0; i < c.argc-1; i++) {
         total_len += strlen(c.args[i]) + 3; // quotes + space
     }
     char* cmdline = malloc(total_len + 1);
     if (!cmdline) return NULL;
     cmdline[0] = '\0';
 
-    for (size_t i = 0; i < c.argc; i++) {
+    for (size_t i = 0; i < c.argc-1; i++) {
         strcat(cmdline, "\"");
         strcat(cmdline, c.args[i]);
         strcat(cmdline, "\"");
         if (i < c.argc - 1) strcat(cmdline, " ");
     }
 #else
-    for (size_t i = 0; i < c.count; i++) {
+    for (size_t i = 0; i < c.count-1; i++) {
         total_len += strlen(c.items[i]) + 3; // quotes + space
     }
     char* cmdline = malloc(total_len + 1);
     if (!cmdline) return NULL;
     cmdline[0] = '\0';
 
-    for (size_t i = 0; i < c.count; i++) {
+    for (size_t i = 0; i < c.count-1; i++) {
         strcat(cmdline, "\"");
         strcat(cmdline, c.items[i]);
         strcat(cmdline, "\"");
