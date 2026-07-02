@@ -95,29 +95,29 @@ Komando new_command_kls_t(size_t argc, const char** args, Koliseo_Temp* kls_t);
 Komando new_shell_command_kls_t(size_t argc, const char** args, Koliseo_Temp* kls_t);
 Komando cmd_from_strings(const char** strings, size_t tot_strings, bool* success, Koliseo_Temp* kls_t);
 #endif // KMD_HAS_KOLISEO
-Kmd_Process _run_command_async_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd* fderr, KmdLoc loc);
-Kmd_Process _run_command_async_fp(Komando c, FILE* fdin, FILE* fdout, FILE* fderr, KmdLoc loc);
-Kmd_Process _run_command_async(Komando c, KmdLoc loc);
-#define run_command_async(cmd) _run_command_async((cmd), KMD_HERE)
-#define run_command_async_fd(cmd, fdin, fdout, fderr) _run_command_async_fd((cmd), (fdin), (fdout), (fderr), KMD_HERE)
-#define run_command_async_fp(cmd, fin, fout, ferr) _run_command_async_fp((cmd), (fin), (fout), (ferr), KMD_HERE)
-bool _command_wait(Kmd_Process p, KmdLoc loc);
-#define command_wait(p) _command_wait((p), KMD_HERE)
-bool _run_command_sync_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd* fderr, KmdLoc loc);
-bool _run_command_sync_fp(Komando c, FILE* fdin, FILE* fdout, FILE* fderr, KmdLoc loc);
-bool _run_command_sync(Komando c, KmdLoc loc);
-#define run_command_sync(cmd) _run_command_sync((cmd), KMD_HERE)
-#define run_command_sync_fd(cmd, fdin, fdout, fderr) _run_command_sync_fd((cmd), (fdin), (fdout), (fderr), KMD_HERE)
-#define run_command_sync_fp(cmd, fin, fout, ferr) _run_command_sync_fp((cmd), (fin), (fout), (ferr), KMD_HERE)
+Kmd_Process kmd__run_command_async_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd* fderr, KmdLoc loc);
+Kmd_Process kmd__run_command_async_fp(Komando c, FILE* fdin, FILE* fdout, FILE* fderr, KmdLoc loc);
+Kmd_Process kmd__run_command_async(Komando c, KmdLoc loc);
+#define run_command_async(cmd) kmd__run_command_async((cmd), KMD_HERE)
+#define run_command_async_fd(cmd, fdin, fdout, fderr) kmd__run_command_async_fd((cmd), (fdin), (fdout), (fderr), KMD_HERE)
+#define run_command_async_fp(cmd, fin, fout, ferr) kmd__run_command_async_fp((cmd), (fin), (fout), (ferr), KMD_HERE)
+bool kmd__command_wait(Kmd_Process p, KmdLoc loc);
+#define command_wait(p) kmd__command_wait((p), KMD_HERE)
+bool kmd__run_command_sync_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd* fderr, KmdLoc loc);
+bool kmd__run_command_sync_fp(Komando c, FILE* fdin, FILE* fdout, FILE* fderr, KmdLoc loc);
+bool kmd__run_command_sync(Komando c, KmdLoc loc);
+#define run_command_sync(cmd) kmd__run_command_sync((cmd), KMD_HERE)
+#define run_command_sync_fd(cmd, fdin, fdout, fderr) kmd__run_command_sync_fd((cmd), (fdin), (fdout), (fderr), KMD_HERE)
+#define run_command_sync_fp(cmd, fin, fout, ferr) kmd__run_command_sync_fp((cmd), (fin), (fout), (ferr), KMD_HERE)
 
 #define run_command(cmd) run_command_sync((cmd))
 #define run_command_fd(cmd, fdin, fdout, fderr) run_command_sync((cmd), (fdin), (fdout), (fderr))
 
 void kmd_print_stream_to_file(int source, FILE* dest);
 int kmd_compare_stream_to_file(int source, const char *filepath);
-bool _run_command_checked(Komando c, bool* matched, bool record, const char* stdout_filename, const char* stderr_filename, KmdLoc loc);
+bool kmd__run_command_checked(Komando c, bool* matched, bool record, const char* stdout_filename, const char* stderr_filename, KmdLoc loc);
 
-#define run_command_checked(c, matched, record, stdout_filename, stderr_filename) _run_command_checked((c), (matched), (record), (stdout_filename), (stderr_filename), KMD_HERE)
+#define run_command_checked(c, matched, record, stdout_filename, stderr_filename) kmd__run_command_checked((c), (matched), (record), (stdout_filename), (stderr_filename), KMD_HERE)
 #endif // KOMANDO_H_
 
 #ifdef KMD_IMPLEMENTATION
@@ -303,7 +303,7 @@ Komando cmd_from_strings(const char** strings, size_t tot_strings, bool* success
 }
 #endif // KMD_HAS_KOLISEO
 
-Kmd_Process _run_command_async_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd* fderr, KmdLoc loc) {
+Kmd_Process kmd__run_command_async_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd* fderr, KmdLoc loc) {
     if (euser_is_root()) {
         fprintf(stderr, "[ %s:%i at %s() ] %s():    Can't run commands as root.\n", loc.file, loc.line, loc.func, __func__);
         return KMD_PROCESS_INVALID;
@@ -477,7 +477,7 @@ Kmd_Process _run_command_async_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd
     //We're not freeing the strings in case the command wants to run again
 }
 
-Kmd_Process _run_command_async_fp(Komando c, FILE* fin, FILE* fout, FILE* ferr, KmdLoc loc) {
+Kmd_Process kmd__run_command_async_fp(Komando c, FILE* fin, FILE* fout, FILE* ferr, KmdLoc loc) {
     Kmd_Fd fdin = {0};
     Kmd_Fd fdout = {0};
     Kmd_Fd fderr = {0};
@@ -532,18 +532,18 @@ Kmd_Process _run_command_async_fp(Komando c, FILE* fin, FILE* fout, FILE* ferr, 
             use_fderr = true;
         }
     }
-    return _run_command_async_fd(c,
+    return kmd__run_command_async_fd(c,
             use_fdin ? &fdin : NULL,
             use_fdout ? &fdout : NULL,
             use_fderr ? &fderr : NULL,
         loc);
 }
 
-Kmd_Process _run_command_async(Komando c, KmdLoc loc) {
-    return _run_command_async_fd(c, NULL, NULL, NULL, loc);
+Kmd_Process kmd__run_command_async(Komando c, KmdLoc loc) {
+    return kmd__run_command_async_fd(c, NULL, NULL, NULL, loc);
 }
 
-bool _command_wait(Kmd_Process p, KmdLoc loc) {
+bool kmd__command_wait(Kmd_Process p, KmdLoc loc) {
 #ifndef _WIN32
     for (;;) {
         int wstatus = 0;
@@ -590,20 +590,20 @@ bool _command_wait(Kmd_Process p, KmdLoc loc) {
 #endif // _WIN32
 }
 
-bool _run_command_sync_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd* fderr, KmdLoc loc) {
-    Kmd_Process p = _run_command_async_fd(c, fdin, fdout, fderr, loc);
-    bool res = _command_wait(p, loc);
+bool kmd__run_command_sync_fd(Komando c, Kmd_Fd* fdin, Kmd_Fd* fdout, Kmd_Fd* fderr, KmdLoc loc) {
+    Kmd_Process p = kmd__run_command_async_fd(c, fdin, fdout, fderr, loc);
+    bool res = kmd__command_wait(p, loc);
     return res;
 }
 
-bool _run_command_sync_fp(Komando c, FILE* fin, FILE* fout, FILE* ferr, KmdLoc loc) {
-    Kmd_Process p = _run_command_async_fp(c, fin, fout, ferr, loc);
-    bool res = _command_wait(p, loc);
+bool kmd__run_command_sync_fp(Komando c, FILE* fin, FILE* fout, FILE* ferr, KmdLoc loc) {
+    Kmd_Process p = kmd__run_command_async_fp(c, fin, fout, ferr, loc);
+    bool res = kmd__command_wait(p, loc);
     return res;
 }
 
-bool _run_command_sync(Komando c, KmdLoc loc) {
-    return _run_command_sync_fd(c, NULL, NULL, NULL, loc);
+bool kmd__run_command_sync(Komando c, KmdLoc loc) {
+    return kmd__run_command_sync_fd(c, NULL, NULL, NULL, loc);
 }
 
 void kmd_print_stream_to_file(int source, FILE* dest)
@@ -653,7 +653,7 @@ int kmd_compare_stream_to_file(int source, const char *filepath)
     return 1; // contents match
 }
 
-bool _run_command_checked(Komando c, bool* matched, bool record, const char* stdout_filename, const char* stderr_filename, KmdLoc loc) {
+bool kmd__run_command_checked(Komando c, bool* matched, bool record, const char* stdout_filename, const char* stderr_filename, KmdLoc loc) {
     FILE* fout = tmpfile();
     if (!fout) {
         fprintf(stderr, "[ %s:%i ] %s(): tmpfile() failed.\n",
@@ -667,7 +667,7 @@ bool _run_command_checked(Komando c, bool* matched, bool record, const char* std
         fclose(fout);
         return -1;
     }
-    bool res = _run_command_sync_fp(c, NULL, fout, ferr, loc);
+    bool res = kmd__run_command_sync_fp(c, NULL, fout, ferr, loc);
     rewind(fout);
     int out_fd = fileno(fout);
     int stdout_res = kmd_compare_stream_to_file(out_fd, stdout_filename);
