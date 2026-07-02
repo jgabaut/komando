@@ -39,7 +39,7 @@
 
 #define KMD_MAJOR 0
 #define KMD_MINOR 3
-#define KMD_PATCH 2
+#define KMD_PATCH 3
 
 /**
  * Defines current API version number from KLS_MAJOR, KLS_MINOR and KLS_PATCH.
@@ -51,7 +51,7 @@ static const int KOMANDO_API_VERSION_INT =
 /**
  * Defines current API version string.
  */
-static const char KOMANDO_API_VERSION_STRING[] = "0.3.2"; /**< Represents current version with MAJOR.MINOR.PATCH format.*/
+static const char KOMANDO_API_VERSION_STRING[] = "0.3.3"; /**< Represents current version with MAJOR.MINOR.PATCH format.*/
 
 #ifndef KMD_HAS_KOLISEO
 typedef struct Komando {
