@@ -14,5 +14,10 @@ int main(int argc, char** argv) {
     printf("Res: {%s}\n", res ? "ok" : "fail");
     free_command(&cmd);
 
+    Komando foo_cmd = new_command(2, args);
+    res = run_command_sync(foo_cmd);
+    printf("Res: {%s}\n", res ? "ok" : "fail");
+    free_command(&foo_cmd);
+
     return 0;
 }

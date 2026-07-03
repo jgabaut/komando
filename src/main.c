@@ -20,6 +20,11 @@ int main(int argc, char** argv) {
     Komando kmd = new_shell_command_kls_t(2, args, kls_t);
     res = run_command_sync(kmd);
     printf("Res: {%s}\n", res ? "ok" : "fail");
+
+    Komando foo_kmd = new_command_kls_t(2, args, kls_t);
+    res = run_command_sync(foo_kmd);
+    printf("Res: {%s}\n", res ? "ok" : "fail");
+
     kls_temp_end(kls_t);
     kls_free(k);
 
